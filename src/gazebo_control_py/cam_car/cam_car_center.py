@@ -12,7 +12,8 @@ from launch import LaunchDescription
 gazebo_world_path = 'src/world/cafe.world'
 
 # Load the YOLOv8 model
-model = YOLO('yolov8m.pt')
+model = YOLO('yolov8n.pt')
+model.classes = [2,5]
 
 
 class ImageSubscriber(Node):
@@ -47,13 +48,29 @@ class ImageSubscriber(Node):
     image = current_frame
 
     # Object Detection
-    results = model.predict(image, classes=[2,5])
-    img = results[0].plot()
+    result = model(image)[0]
+    boxes = result.boxes  # Boxes object for bounding box outputs
+    masks = result.masks  # Masks object for segmentation masks outputs
+    keypoints = result.keypoints  # Keypoints object for pose outputs
+    probs = result.probs  # Probs object for classification outputs
+    # result.show()  # display to screen
+
+    # Calculate Center Coordinate
+    # print(boxes.xyxy)
+    xyxy = boxes.xyxy[0]
+    p1, p2 = (int(xyxy[0]),int(xyxy[1])),(int(xyxy[2]),int(xyxy[3]))
+    center = (((p2[0] - p1[0]) / 2 +p1[0]) , ((p2[1] - p1[1]) / 2 + p1[1]))
+    print(center)
+    # result.save(filename='result.jpg')  # save to disk
+
+    # results = model.predict(image, classes=[2,5])
+    # img = results[0].plot()
 
 
 
     # Show Results
-    # img = image
+    img = result.plot()
+    cv2.circle(self,((p1[0] + p2[0])//2, (p1[1] + p2[1])//2), self,(0, 0, 255), self)
     cv2.imshow('Detected Frame', img)
     cv2.waitKey(1)
 

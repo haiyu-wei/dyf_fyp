@@ -6,13 +6,12 @@ from sensor_msgs.msg import Image
 from ultralytics import YOLO
 import numpy as np
 
-from launch.actions import ExecuteProcess
-from launch import LaunchDescription
-
 gazebo_world_path = 'src/world/cafe.world'
 
 # Load the YOLOv8 model
-model = YOLO('yolov8m.pt')
+model = YOLO('yolov8n.pt')
+model.classes = [2,5]
+image_center = (320,320)
 
 
 class ImageSubscriber(Node):
@@ -47,13 +46,39 @@ class ImageSubscriber(Node):
     image = current_frame
 
     # Object Detection
-    results = model.predict(image, classes=[2,5])
-    img = results[0].plot()
+    result = model(image)[0]
+    boxes = result.boxes  # Boxes object for bounding box outputs
+    masks = result.masks  # Masks object for segmentation masks outputs
+    keypoints = result.keypoints  # Keypoints object for pose outputs
+    probs = result.probs  # Probs object for classification outputs
+    # result.show()  # display to screen
+
+    # Calculate Center Coordinate
+    # print(boxes.xyxy)
+    try:
+        xyxy = boxes.xyxy[0]
+        p1, p2 = (int(xyxy[0]),int(xyxy[1])),(int(xyxy[2]),int(xyxy[3]))
+        center = (((p2[0] - p1[0]) / 2 +p1[0]) , ((p2[1] - p1[1]) / 2 + p1[1]))
+        print(center)
+        #judge the position
+        if(center[0]<image_center[0]):
+            print("object is on the left hand side")
+        else:
+            print("object is on the right hand side")
+    except:
+      print("no detection")
+    
+    
+
+    # result.save(filename='result.jpg')  # save to disk
+
+    # results = model.predict(image, classes=[2,5])
+    # img = results[0].plot()
 
 
 
     # Show Results
-    # img = image
+    img = result.plot()
     cv2.imshow('Detected Frame', img)
     cv2.waitKey(1)
 
@@ -61,13 +86,6 @@ def main(args=None):
 
   # Initialize the rclpy library
   rclpy.init(args=args)
-
-  # Start Gazebo server
-  ld = LaunchDescription()
-  start_gazebo_cmd =  ExecuteProcess(
-    cmd=['gazebo', '--verbose','-s', 'libgazebo_ros_init.so', '-s', 'libgazebo_ros_factory.so', gazebo_world_path],
-    output='screen')
-  ld.add_action(start_gazebo_cmd)
 
   # Create the node
   image_subscriber = ImageSubscriber()
